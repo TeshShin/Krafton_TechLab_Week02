@@ -16,7 +16,7 @@ DirectX 11로 처음 진입한 주차입니다. 렌더링 파이프라인을 직
 
 **주요 파일** `Engine/Quaternion.h` · `Engine/Camera.h` · `Engine/Matrix.h` · `Engine/UGizmoManager.cpp`
 
-→ **[내 커밋 34건 보기](https://github.com/TeshShin/Krafton_TechLab_Week02/commits?author=TeshShin)** · [14주 전체 정리](https://github.com/TeshShin/Krafton-TechLab-Roles)
+→ **[내 커밋 34건 보기](https://github.com/TeshShin/Krafton_TechLab_Week02/commits?author=TeshShin)** · [주차 학습 노트](https://app.notion.com/p/teshstudy/2-2D-to-3D-Core-System-26b78d59866f800db94ee60b2e2d5844) · [14주 전체 정리](https://github.com/TeshShin/Krafton-TechLab-Roles)
 
 ---
 

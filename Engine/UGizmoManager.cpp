@@ -58,9 +58,9 @@ bool UGizmoManager::Initialize(UMeshManager* meshManager)
 	arrowY->SetColor({ 0, 1, 0, 1 });
 	arrowZ->SetColor({ 0, 0, 1, 1 });
 
-	arrowX->SetOriginRotation({ 0.0f, 0.0f, 90.0f });
+	arrowX->SetOriginRotation({ 0.0f, 0.0f, -90.0f });
 	arrowY->SetOriginRotation({ 0.0f, 0.0f, 0.0f });
-	arrowZ->SetOriginRotation({ -90.0f, 0.0f, 0.0f });
+	arrowZ->SetOriginRotation({ 90.0f, 0.0f, 0.0f });
 
 	locationGizmos.push_back(arrowX);
 	locationGizmos.push_back(arrowZ);
@@ -79,9 +79,9 @@ bool UGizmoManager::Initialize(UMeshManager* meshManager)
 	rotationY->SetColor({ 0, 1, 0, 1 });
 	rotationZ->SetColor({ 0, 0, 1, 1 });
 
-	rotationX->SetOriginRotation({ 0.0f, 0.0f, 90.0f });
+	rotationX->SetOriginRotation({ 0.0f, 0.0f, -90.0f });
 	rotationY->SetOriginRotation({ 0.0f, 0.0f, 0.0f });
-	rotationZ->SetOriginRotation({ -90.0f, 0.0f, 0.0f });
+	rotationZ->SetOriginRotation({ 90.0f, 0.0f, 0.0f });
 
 	rotationGizmos.push_back(rotationX);
 	rotationGizmos.push_back(rotationZ);
@@ -100,9 +100,9 @@ bool UGizmoManager::Initialize(UMeshManager* meshManager)
 	scaleY->SetColor({ 0, 1, 0, 1 });
 	scaleZ->SetColor({ 0, 0, 1, 1 });
 
-	scaleX->SetOriginRotation({ 0.0f, 0.0f, 90.0f });
+	scaleX->SetOriginRotation({ 0.0f, 0.0f, -90.0f });
 	scaleY->SetOriginRotation({ 0.0f, 0.0f, 0.0f });
-	scaleZ->SetOriginRotation({ -90.0f, 0.0f, 0.0f });
+	scaleZ->SetOriginRotation({ 90.0f, 0.0f, 0.0f });
 
 	scaleGizmos.push_back(scaleX);
 	scaleGizmos.push_back(scaleZ);
@@ -346,7 +346,7 @@ void UGizmoManager::BeginDrag(const FRay& mouseRay, EAxis axis, FVector impactPo
 		// 로컬 스페이스 모드일 경우, 축 벡터를 오브젝트의 회전만큼 회전시킵니다.
 		if (!isWorldSpace)
 		{
-			axisDir = targetObject->GetQuaternion().RotateInverse(axisDir);
+			axisDir = targetObject->GetQuaternion().Rotate(axisDir);
 		}
 		dragRotationStartPoint = mouseRay.MousePos;
 		FVector rotDir = axisDir.Cross(impactPoint - dragStartLocation);
@@ -358,7 +358,7 @@ void UGizmoManager::BeginDrag(const FRay& mouseRay, EAxis axis, FVector impactPo
 		// 로컬 스페이스 모드일 경우, 축 벡터를 오브젝트의 회전만큼 회전시킵니다.
 		if (!isWorldSpace)
 		{
-			axisDir = targetObject->GetQuaternion().RotateInverse(axisDir);
+			axisDir = targetObject->GetQuaternion().Rotate(axisDir);
 		}
 
 		// 이동 축과 시선 벡터에 동시에 수직인 벡터를 찾고,
@@ -369,7 +369,7 @@ void UGizmoManager::BeginDrag(const FRay& mouseRay, EAxis axis, FVector impactPo
 	else if (translationType == ETranslationType::Scale)
 	{
 		// Scale 은 항상 로컬 스페이스 모드
-		axisDir = targetObject->GetQuaternion().RotateInverse(axisDir);
+		axisDir = targetObject->GetQuaternion().Rotate(axisDir);
 
 		// 이동 축과 시선 벡터에 동시에 수직인 벡터를 찾고,
 		// 다시 외적하여 평면의 법선 벡터를 계산
@@ -401,7 +401,7 @@ void UGizmoManager::UpdateDrag(const FRay& mouseRay)
 		// 로컬 스페이스 모드일 경우, 축 벡터를 오브젝트의 회전만큼 회전시킵니다.
 		if (!isWorldSpace)
 		{
-			axisDir = targetObject->GetQuaternion().RotateInverse(axisDir);
+			axisDir = targetObject->GetQuaternion().Rotate(axisDir);
 		}
 
 		float projectedLength = startToIntersectionVec.Dot(axisDir) - projectedLengthOffset;
@@ -411,7 +411,7 @@ void UGizmoManager::UpdateDrag(const FRay& mouseRay)
 	}
 	else if (translationType == ETranslationType::Scale)
 	{
-		axisDir = targetObject->GetQuaternion().RotateInverse(axisDir);
+		axisDir = targetObject->GetQuaternion().Rotate(axisDir);
 		float projectedLength = startToIntersectionVec.Dot(axisDir) - projectedLengthOffset;
 		FVector newScale = dragStartScale + GetAxisVector(selectedAxis) * projectedLength;
 
@@ -427,7 +427,8 @@ void UGizmoManager::UpdateDrag(const FRay& mouseRay)
 	{
 		FVector mouseOffset = mouseRay.MousePos - dragRotationStartPoint;
 
-		mouseOffset.X *= -1;
+		// Screen Y grows down; the projected rotation tangent uses camera-up.
+		mouseOffset.Y *= -1;
 
 		float newAmout = mouseOffset.Dot(dragRotationStartVector);
 

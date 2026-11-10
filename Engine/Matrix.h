@@ -8,6 +8,7 @@
 
 struct FMatrix
 {
+	// Row vectors: v' = v * M, local axes in rows, translation in row 3.
 	float M[4][4];
 	// ===== 생성/기본 =====
 	FMatrix() { SetIdentity(); }
@@ -32,15 +33,7 @@ struct FMatrix
 
 	static FVector4 MultiplyVector(FMatrix m, FVector4 v)
 	{
-		FVector4 R(0, 0, 0, 0);
-		for (int32 i = 0; i < 4; i++)
-		{
-			for (int32 j = 0; j < 4; j++)
-			{
-				R[i] += m.M[i][j] * v[j];
-			}
-		}
-		return R;
+		return MultiplyVectorRow(v, m);
 	}
 
 	// 행우선
@@ -69,26 +62,17 @@ struct FMatrix
 		for (int32 r = 0; r < 4; ++r) for (int32 c = 0; c < 4; ++c) T.M[r][c] = A.M[c][r];
 		return T;
 	}
-	// ===== 벡터 변환 (column-vector / row-vector) =====
-	// Column-vector: v' = M * [x y z w]^T
+	// ===== 벡터 변환: v' = v * M (행벡터) =====
+	// Row 접미사가 없는 API도 동일한 행벡터 규약을 사용한다.
 	FVector TransformPoint(const FVector& p, float w = 1.0f) const
 	{
-		float x = M[0][0] * p.X + M[0][1] * p.Y + M[0][2] * p.Z + M[0][3] * w;
-		float y = M[1][0] * p.X + M[1][1] * p.Y + M[1][2] * p.Z + M[1][3] * w;
-		float z = M[2][0] * p.X + M[2][1] * p.Y + M[2][2] * p.Z + M[2][3] * w;
-		float ww = M[3][0] * p.X + M[3][1] * p.Y + M[3][2] * p.Z + M[3][3] * w;
-		// 원근 투영 행렬을 거치면 w가 1이 아닌 값으로 바뀌고, 이때 꼭 나눠야 화면에 올바르게 투영된다.
-		if (ww != 0.0f && ww != 1.0f) { x /= ww; y /= ww; z /= ww; }
-		return FVector(x, y, z);
+		return TransformPointRow(p, w);
 	}
 	FVector TransformVector(const FVector& v) const
-	{ // w=0
-		float x = M[0][0] * v.X + M[0][1] * v.Y + M[0][2] * v.Z;
-		float y = M[1][0] * v.X + M[1][1] * v.Y + M[1][2] * v.Z;
-		float z = M[2][0] * v.X + M[2][1] * v.Y + M[2][2] * v.Z;
-		return FVector(x, y, z);
+	{
+		return TransformVectorRow(v);
 	}
-	// Row-vector: v'^T = [x y z w] * M
+	// Row-vector: v' = [x y z w] * M
 	FVector TransformPointRow(const FVector& p, float w = 1.0f) const
 	{
 		float x = p.X * M[0][0] + p.Y * M[1][0] + p.Z * M[2][0] + w * M[3][0];
@@ -211,9 +195,7 @@ struct FMatrix
 	// ===== 기본 변환 생성 =====
 	static FMatrix Translation(float tx, float ty, float tz)
 	{
-		FMatrix T = IdentityMatrix();
-		T.M[0][3] = tx; T.M[1][3] = ty; T.M[2][3] = tz;
-		return T;
+		return TranslationRow(tx, ty, tz);
 	}
 	static FMatrix TranslationRow(float tx, float ty, float tz)
 	{
@@ -229,42 +211,19 @@ struct FMatrix
 	}
 	static FMatrix RotationX(float rad)
 	{
-		float c = cosf(rad), s = sinf(rad);
-		FMatrix R = IdentityMatrix();
-		R.M[1][1] = c; R.M[1][2] = -s;
-		R.M[2][1] = s; R.M[2][2] = c;
-		return R;
+		return RotationXRow(rad);
 	}
 	static FMatrix RotationY(float rad)
 	{
-		float c = cosf(rad), s = sinf(rad);
-		FMatrix R = IdentityMatrix();
-		R.M[0][0] = c; R.M[0][2] = s;
-		R.M[2][0] = -s; R.M[2][2] = c;
-		return R;
+		return RotationYRow(rad);
 	}
 	static FMatrix RotationZ(float rad)
 	{
-		float c = cosf(rad), s = sinf(rad);
-		FMatrix R = IdentityMatrix();
-		R.M[0][0] = c; R.M[0][1] = -s;
-		R.M[1][0] = s; R.M[1][1] = c;
-		return R;
+		return RotationZRow(rad);
 	}
 	static FMatrix RotationAxis(const FVector& axis, float rad)
 	{
-		// 단위축 가정 (필요 시 노말라이즈)
-		float x = axis.X, y = axis.Y, z = axis.Z;
-		float len = sqrtf(x * x + y * y + z * z); if (len == 0) return IdentityMatrix();
-		x /= len; y /= len; z /= len;
-		float c = cosf(rad), s = sinf(rad), t = 1.0f - c;
-
-		FMatrix R(0.0f);
-		R.M[0][0] = t * x * x + c;   R.M[0][1] = t * x * y - s * z; R.M[0][2] = t * x * z + s * y; R.M[0][3] = 0;
-		R.M[1][0] = t * y * x + s * z; R.M[1][1] = t * y * y + c; R.M[1][2] = t * y * z - s * x; R.M[1][3] = 0;
-		R.M[2][0] = t * z * x - s * y; R.M[2][1] = t * z * y + s * x; R.M[2][2] = t * z * z + c; R.M[2][3] = 0;
-		R.M[3][0] = 0; R.M[3][1] = 0; R.M[3][2] = 0; R.M[3][3] = 1;
-		return R;
+		return RotationAxisRow(axis, rad);
 	}
 	static FMatrix RotationXRow(float rad)
 	{
@@ -310,28 +269,7 @@ struct FMatrix
 	// 여기선 명시적으로 구현
 	static FMatrix LookAtRH(const FVector& eye, const FVector& target, const FVector& up)
 	{
-		// f = normalize(eye - target)  (카메라가 바라보는 방향 = -forward)
-		FVector f(eye.X - target.X, eye.Y - target.Y, eye.Z - target.Z);
-		float fl = sqrtf(f.X * f.X + f.Y * f.Y + f.Z * f.Z); f.X /= fl; f.Y /= fl; f.Z /= fl;
-		// s = normalize(up × f)
-		FVector s(
-			up.Y * f.Z - up.Z * f.Y,
-			up.Z * f.X - up.X * f.Z,
-			up.X * f.Y - up.Y * f.X
-		);
-		float sl = sqrtf(s.X * s.X + s.Y * s.Y + s.Z * s.Z); s.X /= sl; s.Y /= sl; s.Z /= sl;
-		// u = f × s
-		FVector u(
-			f.Y * s.Z - f.Z * s.Y,
-			f.Z * s.X - f.X * s.Z,
-			f.X * s.Y - f.Y * s.X
-		);
-		FMatrix V(0.0f);
-		V.M[0][0] = s.X; V.M[0][1] = s.Y; V.M[0][2] = s.Z; V.M[0][3] = -(s.X * eye.X + s.Y * eye.Y + s.Z * eye.Z);
-		V.M[1][0] = u.X; V.M[1][1] = u.Y; V.M[1][2] = u.Z; V.M[1][3] = -(u.X * eye.X + u.Y * eye.Y + u.Z * eye.Z);
-		V.M[2][0] = f.X; V.M[2][1] = f.Y; V.M[2][2] = f.Z; V.M[2][3] = -(f.X * eye.X + f.Y * eye.Y + f.Z * eye.Z);
-		V.M[3][0] = 0;   V.M[3][1] = 0;   V.M[3][2] = 0;   V.M[3][3] = 1;
-		return V;
+		return LookAtRHRow(eye, target, up);
 	}
 	static FMatrix LookAtRHRow(const FVector& eye, const FVector& target, const FVector& up)
 	{
@@ -360,29 +298,7 @@ struct FMatrix
 	}
 	static FMatrix LookAtLH(const FVector& eye, const FVector& target, const FVector& up)
 	{
-		// f = normalize(target - eye)
-		FVector f(eye.X - target.X, eye.Y - target.Y, eye.Z - target.Z); // -forward
-		f.Normalize();
-		FVector s(
-			up.Cross(f)
-		);
-		s.Normalize();
-		FVector u(
-			f.Cross(s)
-		);
-		FMatrix V = IdentityMatrix();
-		// 아래 세 줄은 회전성분을 채우는 것이다.  (카메라의 x,y,z 축이 월드 좌표계에서 어디를 향하는지)
-		// camera's axis
-		V.M[0][0] = s.X; V.M[0][1] = u.X; V.M[0][2] = f.X; V.M[0][3] = 0;
-		V.M[1][0] = s.Y; V.M[1][1] = u.Y; V.M[1][2] = f.Y; V.M[1][3] = 0;
-		V.M[2][0] = s.Z; V.M[2][1] = u.Z; V.M[2][2] = f.Z; V.M[2][3] = 0;
-		// translation(카메라의 위치를 카메라의 x,y,z 축으로 본 좌표의 음수다.)
-		// 월드 좌표의 eye 위치를 뷰 공간 원점으로 이동시키는 역할
-		V.M[3][0] = -(eye.X * s.X + eye.Y * s.Y + eye.Z * s.Z);
-		V.M[3][1] = -(eye.X * u.X + eye.Y * u.Y + eye.Z * u.Z);
-		V.M[3][2] = -(eye.X * f.X + eye.Y * f.Y + eye.Z * f.Z);
-		V.M[3][3] = 1;
-		return V;
+		return LookAtLHRow(eye, target, up);
 	}
 	static FMatrix LookAtLHRow(const FVector& eye, const FVector& target, const FVector& up)
 	{
@@ -413,14 +329,7 @@ struct FMatrix
 	// ===== Projection =====
 	static FMatrix PerspectiveFovRH(float fovY, float aspect, float zNear, float zFar)
 	{
-		float f = 1.0f / tanf(fovY * 0.5f);
-		FMatrix P(0.0f);
-		P.M[0][0] = f / aspect;
-		P.M[1][1] = f;
-		P.M[2][2] = zFar / (zNear - zFar);
-		P.M[2][3] = (zFar * zNear) / (zNear - zFar);
-		P.M[3][2] = -1.0f;
-		return P;
+		return PerspectiveFovRHRow(fovY, aspect, zNear, zFar);
 	}
 
 	// === Perspective (RH, row-vector, D3D식 depth[0,1]) ===
@@ -440,14 +349,7 @@ struct FMatrix
 
 	static FMatrix PerspectiveFovLH(float fovY, float aspect, float zNear, float zFar)
 	{
-		float f = 1.0f / tanf(fovY * 0.5f);
-		FMatrix P(0.0f);
-		P.M[0][0] = f / aspect;
-		P.M[1][1] = f;
-		P.M[2][2] = zFar / (zFar - zNear);
-		P.M[2][3] = (-zNear * zFar) / (zFar - zNear);
-		P.M[3][2] = 1.0f;
-		return P;
+		return PerspectiveFovLHRow(fovY, aspect, zNear, zFar);
 	}
 	static FMatrix PerspectiveFovLHRow(float fovY, float aspect, float zn, float zf)
 	{

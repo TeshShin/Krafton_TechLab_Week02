@@ -75,8 +75,8 @@ void UCamera::AddYawPitch(float yawZ, float pitch)
 	FVector rightAfterYaw = qYaw.Rotate(mRight).Normalized();
 	FQuaternion qPitch = FQuaternion::FromAxisAngle(rightAfterYaw, pitch);
 
-	// 3) 합성 (row-vector 규약: 먼저 yaw, 다음 pitch, 그 다음 기존 회전)
-	mRot = (qPitch * qYaw * mRot).Normalized();
+	// 3) 기존 자세에 월드 yaw, 월드 pitch 순서로 적용 (행벡터 규약)
+	mRot = (mRot * qYaw * qPitch).Normalized();
 
 	// mPitch는 제어에 더 이상 사용하지 않음
 	RecalcAxesFromQuat();
@@ -96,14 +96,14 @@ void UCamera::GetYawPitch(float& yawZ, float& pitch) const
 // TODO : 정확히 잘 작동하는지 모름. 사용할 때 확인 요망
 void UCamera::SetYawPitch(float yawZ, float pitch)
 {
-	// 1) Yaw (World Z) : qYaw ⊗ mRot
+	// 1) Yaw (World Z): mRot * qYaw
 	if (yawZ != 0.0f)
 	{
 		FQuaternion qYaw = FQuaternion::FromAxisAngle(FVector(0, 0, 1), yawZ);
-		mRot = (qYaw * mRot).Normalized();
+		mRot = (mRot * qYaw).Normalized();
 	}
 
-	// 2) Pitch (Local Right) : 현재 Right 축을 월드축으로 잡고 앞에서 곱해도 동일
+	// 2) Pitch: 현재 Right를 월드축으로 잡고 오른쪽에 합성
 	if (pitch != 0.0f)
 	{
 		const float kMax = ToRad(89.0f);
@@ -116,7 +116,7 @@ void UCamera::SetYawPitch(float yawZ, float pitch)
 		{
 			RecalcAxesFromQuat(); // 최신 Right 구하기
 			FQuaternion qPitch = FQuaternion::FromAxisAngle(mRight, dp);
-			mRot = (qPitch * mRot).Normalized();
+			mRot = (mRot * qPitch).Normalized();
 			mPitch = newPitch;
 		}
 	}
@@ -140,6 +140,7 @@ void UCamera::SetEulerXYZRad(float rx, float ry, float rz)
 {
 	if (bLockRoll) rz = 0.0f;            // 롤 잠그고 싶으면 유지, 아니면 제거/토글
 	mRot = FQuaternion::FromEulerXYZ(rx, ry, rz).Normalized();
+	RecalcAxesFromQuat();
 	// pitch 캐시(편의): forward.z = sin(pitch)
 	float fz = std::clamp(mForward.Z, -1.0f, 1.0f);
 	mPitch = asinf(fz);
@@ -182,6 +183,7 @@ void UCamera::UpdateProj(bool leftHanded)
 // 뷰 행렬 갱신
 void UCamera::UpdateView()
 {
+	RecalcAxesFromQuat();
 	// f = (eye - target) = -forward → forward = -f
 	// 여기서 f(Back)는 카메라가 보는 -Z 방향과 대응시키기 위해 사용
 	FVector s = mRight;                 // Right

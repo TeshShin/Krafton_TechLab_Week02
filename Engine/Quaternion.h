@@ -54,21 +54,17 @@ struct FQuaternion
 	*/
 	static FQuaternion Hamilton(const FQuaternion& p, const FQuaternion& q)
 	{
-		// 표준 해밀턴 곱: q ⊗ p (column 규약: 먼저 p, 그 다음 q)
+		// Standard Hamilton product: p tensor q.
 		return FQuaternion(
-			q.W * p.X + q.X * p.W + q.Y * p.Z - q.Z * p.Y,
-			q.W * p.Y - q.X * p.Z + q.Y * p.W + q.Z * p.X,
-			q.W * p.Z + q.X * p.Y - q.Y * p.X + q.Z * p.W,
-			q.W * p.W - q.X * p.X - q.Y * p.Y - q.Z * p.Z
+			p.W * q.X + p.X * q.W + p.Y * q.Z - p.Z * q.Y,
+			p.W * q.Y - p.X * q.Z + p.Y * q.W + p.Z * q.X,
+			p.W * q.Z + p.X * q.Y - p.Y * q.X + p.Z * q.W,
+			p.W * q.W - p.X * q.X - p.Y * q.Y - p.Z * q.Z
 		);
 	}
-	// 사원수 곱셈은 교환법칙 성립 X 유의해서 사용
-	// 먼저 this, 그 다음 quat
+	// Apply this rotation first, then quat: R(this * quat) = R(this) * R(quat).
 	FQuaternion operator*(const FQuaternion& quat) const
 	{
-		// row 규약 합성: 먼저 this, 그 다음 quat
-		// → 표준 해밀턴으로는 Hamilton(this, quat)가 아니라 Hamilton(quat, this)
-		// *this ⊗ quat
 		return Hamilton(quat, *this);
 	}
 	/*
@@ -156,9 +152,9 @@ struct FQuaternion
 		FVector R = F.Cross(Uref).Normalized();
 		FVector U = R.Cross(F).Normalized(); // 재직교(수치안정)
 		FMatrix M = FMatrix::IdentityMatrix();
-		M.M[0][0] = R.X; M.M[0][1] = F.X; M.M[0][2] = U.X;
-		M.M[1][0] = R.Y; M.M[1][1] = F.Y; M.M[1][2] = U.Y;
-		M.M[2][0] = R.Z; M.M[2][1] = F.Z; M.M[2][2] = U.Z;
+		M.M[0][0] = R.X; M.M[0][1] = R.Y; M.M[0][2] = R.Z;
+		M.M[1][0] = F.X; M.M[1][1] = F.Y; M.M[1][2] = F.Z;
+		M.M[2][0] = U.X; M.M[2][1] = U.Y; M.M[2][2] = U.Z;
 		return FQuaternion::FromMatrixRow(M);
 	}
 
@@ -192,7 +188,7 @@ struct FQuaternion
 		FQuaternion qv(v.X, v.Y, v.Z, 0.0f);
 		FQuaternion inv = Inverse();
 		// r = (q ⊗ v) ⊗ q^{-1}
-		FQuaternion r = (*this) * qv * inv;      // (tmp, inv) => tmp ⊗ inv
+		FQuaternion r = Hamilton(Hamilton(*this, qv), inv);      // (tmp, inv) => tmp ⊗ inv
 		return FVector(r.X, r.Y, r.Z);
 	}
 	FVector RotateInverse(const FVector& v) const
@@ -200,7 +196,7 @@ struct FQuaternion
 		FQuaternion qv(v.X, v.Y, v.Z, 0.0f);
 		FQuaternion inv = Inverse();
 		// r = (q ⊗ v) ⊗ q^{-1}
-		FQuaternion r = inv * qv * (*this);      // (tmp, inv) => tmp ⊗ inv
+		FQuaternion r = Hamilton(Hamilton(inv, qv), *this);      // (tmp, inv) => tmp ⊗ inv
 		return FVector(r.X, r.Y, r.Z);
 	}
 	*/
@@ -253,8 +249,8 @@ struct FQuaternion
 		return v - W * t + u.Cross(t);  // 정방향 v + W*t + u×t 와 w 항 부호만 반대
 	}
 
-	// === COLUMNS are axes (row-vector) ===
-	// col0 = q·(+X) = Right
+	// === ROWS are transformed local axes (row-vector) ===
+	// row0 = q.Rotate(+X) = Right
 	FMatrix ToMatrixRow() const
 	{
 		FQuaternion q = Normalized();
@@ -265,17 +261,17 @@ struct FQuaternion
 		float wx = w * x, wy = w * y, wz = w * z;
 
 		FMatrix R = FMatrix::IdentityMatrix();
-		// === columns are axes (col0=+X, col1=+Y, col2=+Z) ===
+		// Rows: +X (Right), +Y (Forward), +Z (Up).
 		R.M[0][0] = 1.0f - 2.0f * (yy + zz);
-		R.M[1][0] = 2.0f * (xy + wz);
-		R.M[2][0] = 2.0f * (xz - wy);
+		R.M[0][1] = 2.0f * (xy + wz);
+		R.M[0][2] = 2.0f * (xz - wy);
 
-		R.M[0][1] = 2.0f * (xy - wz);
+		R.M[1][0] = 2.0f * (xy - wz);
 		R.M[1][1] = 1.0f - 2.0f * (xx + zz);
-		R.M[2][1] = 2.0f * (yz + wx);
+		R.M[1][2] = 2.0f * (yz + wx);
 
-		R.M[0][2] = 2.0f * (xz + wy);
-		R.M[1][2] = 2.0f * (yz - wx);
+		R.M[2][0] = 2.0f * (xz + wy);
+		R.M[2][1] = 2.0f * (yz - wx);
 		R.M[2][2] = 1.0f - 2.0f * (xx + yy);
 		return R;
 	}
@@ -283,9 +279,9 @@ struct FQuaternion
 	// 회전행렬(행벡터 규약, 상단3x3) → 쿼터니언
 	static FQuaternion FromMatrixRow(const FMatrix& R)
 	{
-		float m00 = R.M[0][0], m01 = R.M[0][1], m02 = R.M[0][2];
-		float m10 = R.M[1][0], m11 = R.M[1][1], m12 = R.M[1][2];
-		float m20 = R.M[2][0], m21 = R.M[2][1], m22 = R.M[2][2];
+		float m00 = R.M[0][0], m01 = R.M[1][0], m02 = R.M[2][0];
+		float m10 = R.M[0][1], m11 = R.M[1][1], m12 = R.M[2][1];
+		float m20 = R.M[0][2], m21 = R.M[1][2], m22 = R.M[2][2];
 
 		float tr = m00 + m11 + m22;
 		FQuaternion q;
@@ -327,26 +323,22 @@ struct FQuaternion
 	// Return FVector(rx, ry, rz) rad(라디안)
 	FVector GetEulerXYZ() const
 	{
-		// 규약: row-vector, columns are axes, R = Rx * Ry * Rz  (X→Y→Z 순서)
+		// Row vectors: R = Rx * Ry * Rz; R[0][2] = -sin(ry).
 		FMatrix R = ToMatrixRow();
-		// 행벡터 + columns=axes + R = Rx*Ry*Rz 전개 결과:
-		// R[0][2] = sin(ry)
-		// R = Rx * Ry * Rz (row-vector)
-		const float sy = std::clamp(R.M[0][2], -1.0f, 1.0f); // +Y가 col1, 그래서 R[0][2]가 +sinY
-		const float ry = asinf(sy);
-		const float cy = cosf(ry);
+		const float sy = std::clamp(-R.M[0][2], -1.0f, 1.0f);
+		const float cy = sqrtf(R.M[0][0] * R.M[0][0] + R.M[0][1] * R.M[0][1]);
+		const float ry = atan2f(sy, cy);
 		float rx, rz;
-		if (fabsf(cy) > 1e-6f)
+		if (cy > 1e-6f)
 		{
-			rx = atan2f(-R.M[1][2], R.M[2][2]); // X
-			rz = atan2f(-R.M[0][1], R.M[0][0]); // Z
+			rx = atan2f(R.M[1][2], R.M[2][2]);
+			rz = atan2f(R.M[0][1], R.M[0][0]);
 		}
 		else
 		{
-			// gimbal lock
+			// At +/-90 degrees choose rz=0 and retain the combined X/Z rotation.
 			rz = 0.0f;
-			rx = (sy > 0.0f) ? atan2f(R.M[2][0], R.M[1][0])
-				: atan2f(-R.M[2][0], -R.M[1][0]);
+			rx = atan2f(sy * R.M[1][0], R.M[1][1]);
 		}
 		return FVector(rx, ry, rz);
 	}
@@ -387,23 +379,23 @@ struct FQuaternion
 	{
 		*this = RotatedLocalAxisAngle(worldAxis, radians); 
 	}
-	// 월드 오일러(X→Y→Z)로 누적: q' = (Rx * Ry * Rz) * q
+	// 월드 오일러(X→Y→Z)로 누적: q' = q * (Rx * Ry * Rz)
 	FQuaternion RotatedWorldEulerXYZ(float rx, float ry, float rz) const
 	{
 		FQuaternion qx = FromAxisAngle(FVector(1, 0, 0), rx);
 		FQuaternion qy = FromAxisAngle(FVector(0, 1, 0), ry);
 		FQuaternion qz = FromAxisAngle(FVector(0, 0, 1), rz);
 		FQuaternion qW = qx * qy * qz;
-		return (qW * *this).Normalized();
+		return (*this * qW).Normalized();
 	}
-	// 월드 오일러(X→Y→Z)로 누적: q' = (Rx * Ry * Rz) * q
+	// 월드 오일러(X→Y→Z)로 누적: q' = q * (Rx * Ry * Rz)
 	FQuaternion RotatedWorldEulerXYZ(const FVector& v) const
 	{
 		FQuaternion qx = FromAxisAngle(FVector(1, 0, 0), v.X);
 		FQuaternion qy = FromAxisAngle(FVector(0, 1, 0), v.Y);
 		FQuaternion qz = FromAxisAngle(FVector(0, 0, 1), v.Z);
 		FQuaternion qW = qx * qy * qz;
-		return (qW * *this).Normalized();
+		return (*this * qW).Normalized();
 	}
 	void RotateWorldEulerXYZInPlace(float rx, float ry, float rz)
 	{
@@ -420,7 +412,7 @@ struct FQuaternion
 		FQuaternion qz = FromAxisAngle(FVector(0, 0, 1), yawZ);
 		FQuaternion qx = FromAxisAngle(FVector(1, 0, 0), pitchX);
 		FQuaternion qy = FromAxisAngle(FVector(0, 1, 0), rollY);
-		return (qz * qx * qy * *this).Normalized();
+		return (*this * qz * qx * qy).Normalized();
 	}
 	void RotateWorldYawPitchRollInPlace(float yawZ, float pitchX, float rollY)
 	{

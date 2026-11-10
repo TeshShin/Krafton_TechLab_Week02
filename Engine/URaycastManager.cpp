@@ -41,7 +41,7 @@ FVector URaycastManager::GetRaycastOrigin(UCamera* camera)
 
 FVector URaycastManager::GetRaycastDirection(UCamera* camera)
 {
-	float CameraFOV = camera->GetFOV();
+	float CameraFOV = ToRad(camera->GetFOV());
 
 	// convert the mouse coords to Normalized Device Coordinates (NDC)
 	int32 width = 0, height = 0;
@@ -59,9 +59,9 @@ FVector URaycastManager::GetRaycastDirection(UCamera* camera)
 	rayViewDir.Normalize();
 
 	// convert the camera-space ray direction to world direction
-	FMatrix V = FMatrix::LookAtRH(camera->GetLocation(), camera->GetLocation() + camera->GetForward(), camera->GetUp());
+	FMatrix V = camera->GetView();
 	V = FMatrix::Inverse(V);
-	FVector4 rayDirection = FMatrix::MultiplyVector(V, FVector4(rayViewDir.X, rayViewDir.Y, rayViewDir.Z, 0.0f));
+	FVector4 rayDirection = FMatrix::MultiplyVectorRow(FVector4(rayViewDir.X, rayViewDir.Y, rayViewDir.Z, 0.0f), V);
 
 	return { rayDirection.X, rayDirection.Y, rayDirection.Z };
 }
